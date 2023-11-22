@@ -1,7 +1,7 @@
-from utils.constants import *
+import numpy as np
 
-def match(find_closest, find_driver, find_path, lim_start = 0, 
-          lim_end = 5000, init = True, prob_stay = PROB_STAY):
+def match_b1(find_closest, find_driver, find_path, lim_start = 0, 
+          lim_end = 5000, init = True, prob_stay = 0.9, skip_no_match = True):
     
     passengers, drivers, adj, nodes = initialize_data(True)
     edited_passengers, edited_drivers = [], []
@@ -37,12 +37,17 @@ def match(find_closest, find_driver, find_path, lim_start = 0,
         
         passenger = edited_passengers[index]
         
-        if edited_drivers[0][0] > passenger[0]:
+        if edited_drivers[0][0] > passenger[0] and skip_no_match:
             continue
         
         time_start = time.time()
         
-        driver, num = find_driver(passenger, edited_drivers, nodes, adj, find_path)
+        driver, num, prem = find_driver(passenger, edited_drivers, nodes, adj, find_path)
+        
+        prem_bonus = 2 if prem else 1
+        
+        if driver is None:
+            continue
         
         driver_node = driver[1]
         source_node = passenger[1]
@@ -63,8 +68,11 @@ def match(find_closest, find_driver, find_path, lim_start = 0,
         
         time_to_dest = find_path(source_node, dest_node, adj, nodes, col)
         
+        if time_to_dest == -1 or time_to_passenger == -1:
+            continue
+        
         res_customer.append(time_to_passenger + wait_time)
-        res_driver.append(time_to_dest - time_to_passenger)
+        res_driver.append(prem_bonus * time_to_dest - time_to_passenger)
         edited_drivers.pop(num)
         
         if np.random.random() < prob_stay:
@@ -79,33 +87,3 @@ def match(find_closest, find_driver, find_path, lim_start = 0,
         if len(edited_drivers) == 0:
             break
     return np.array(res_customer), np.array(res_driver), np.array(res_time)
-
-
-def process_results(res_cus, res_driv, res_time):
-    plt.rcParams['figure.figsize'] = [12, 4]
-    fig, ax = plt.subplots(1, 3)
-    fig.tight_layout(pad = 1.5)
-    ax[0].hist(res_cus)
-    
-    ax[0].set_xlabel(f'''Mean : {np.round(res_cus.mean(), 2)}
-    Median : {np.round(np.quantile(res_cus, 0.5), 2)}
-    Std : {np.round(res_cus.std(), 2)}
-    ''')
-    
-    ax[0].set_ylabel('Count')
-    ax[0].set_title(f'Customer Waiting Time (Min)')
-    ax[1].hist(res_driv)
-    ax[1].set_xlabel(f'''Mean : {np.round(res_driv.mean(), 2)}
-    Median : {np.round(np.quantile(res_driv, 0.5), 2)}
-    Std : {np.round(res_driv.std(), 2)}
-    ''')
-    ax[1].set_ylabel('Count')
-    ax[1].set_title(f'Driver Profit (Min)')
-    
-    
-    ax[2].plot(np.arange(len(res_time)), res_time)
-    ax[2].set_title("Run Time")
-    ax[2].set_xlabel('Passengers')
-    ax[2].set_ylabel("Cumulative Time")
-    
-    plt.show()
